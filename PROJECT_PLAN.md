@@ -20,7 +20,7 @@ A web application where candidates practice job interviews with an AI interviewe
 │  PDF:       jsPDF (client-side generation)              │
 │  Auth:      Google Identity Services                    │
 └────────────────────┬────────────────────────────────────┘
-                     │ /api/* (proxied)
+                     │ /api/*
                      ▼
 ┌─────────────────────────────────────────────────────────┐
 │                   SERVER (FastAPI/Python)                │
@@ -118,13 +118,13 @@ Interview/
    Paste job description
         │
         ▼
-[3. MIC CALIBRATION]
+[3. MIC CALIBRATION] ( Innovation) 
    Random phrase displayed → user reads aloud
    Word-level match comparison → need 80%+ to proceed
         │
         ▼
 [4. INTERVIEW]  ←─── 15-minute countdown timer
-   AI (Alex) asks question → ElevenLabs speaks it
+   AI (Alex) or depends on voice that you choose , asks question → ElevenLabs speaks it
    Candidate speaks → Web Speech API captures text
    Answer sent to Gemini → next question
    10-13 exchanges (includes follow-ups)
@@ -309,6 +309,45 @@ PostgreSQL for structured relational data. SQLAlchemy + Alembic for Python-nativ
 | Resume text           | Avoid re-upload if doing multiple interviews same role |
 | Job description       | Context for review, reuse for re-interview             |
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ### What NOT to Store
 
 | Data                     | Why                                                 |
@@ -320,6 +359,77 @@ PostgreSQL for structured relational data. SQLAlchemy + Alembic for Python-nativ
 | PDF reports              | Generate on-demand from stored transcript + eval    |
 | Resume PDF files         | Store extracted text only, not the binary file      |
 | Passwords                | Google OAuth only — no password to store             |
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ### Future Tables (when adding features)
 
@@ -341,6 +451,80 @@ PostgreSQL for structured relational data. SQLAlchemy + Alembic for Python-nativ
 │ score          (int 1-10) │
 └──────────────────────────┘
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ### Migration Path (current → DB)
 

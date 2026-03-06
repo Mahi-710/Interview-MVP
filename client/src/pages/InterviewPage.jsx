@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useInterview } from '../context/InterviewContext';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
+import { useVideoAnalysis } from '../hooks/useVideoAnalysis';
 import { sendInterviewMessage, getTextToSpeech, getEvaluation } from '../utils/api';
 
 const INTERVIEW_DURATION = 15 * 60; // 15 minutes in seconds
@@ -45,7 +46,9 @@ function InterviewPage() {
   const navigate = useNavigate();
   const { isListening, transcript, startListening, stopListening, setTranscript } = useSpeechRecognition();
   const { isPlaying, playAudio, speakFallback, stop: stopAudio } = useAudioPlayer();
+  const { videoStatus, isVideoActive, startVideo, stopVideo } = useVideoAnalysis();
   const [isLoading, setIsLoading] = useState(false);
+  const [cameraStatus, setCameraStatus] = useState('idle'); // idle | checking | ready | error
   const [isStarted, setIsStarted] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const chatEndRef = useRef(null);
@@ -143,6 +146,25 @@ function InterviewPage() {
     setMicStatus('idle');
   };
 
+  // ── Camera Check ─────────────────────────────────────────
+  const handleStartCamera = async () => {
+    setCameraStatus('checking');
+    try {
+      await startVideo();
+      setTimeout(async () => {
+        try {
+          const res = await fetch('/api/video/status');
+          await res.json();
+          setCameraStatus('ready');
+        } catch {
+          setCameraStatus('error');
+        }
+      }, 1500);
+    } catch {
+      setCameraStatus('error');
+    }
+  };
+
   // ── Timer ─────────────────────────────────────────────────
   useEffect(() => {
     if (!isStarted) return;
@@ -171,6 +193,7 @@ function InterviewPage() {
 
     stopListening();
     stopAudio();
+    stopVideo();
     clearInterval(timerRef.current);
     setIsInterviewComplete(true);
     setIsGeneratingReport(true);
@@ -192,7 +215,7 @@ function InterviewPage() {
       setIsGeneratingReport(false);
       isEndingRef.current = false;
     }
-  }, [conversation, user, jobTitle, stopListening, stopAudio, setIsInterviewComplete, setEvaluation, navigate]);
+  }, [conversation, user, jobTitle, stopListening, stopAudio, stopVideo, setIsInterviewComplete, setEvaluation, navigate]);
 
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
 
@@ -295,7 +318,7 @@ function InterviewPage() {
   const timerCritical = timeLeft <= 30; // last 30 seconds
 
   return (
-    <div className="page interview-page">
+    <div className={`page interview-page ${isStarted && isVideoActive ? 'with-video' : ''}`}>
       <div className="interview-header">
         <h2>Interview with {interviewerName}</h2>
         <div className="header-right">
@@ -391,93 +414,204 @@ function InterviewPage() {
             )}
           </div>
 
+          {micStatus === 'success' && (
+            <div className="camera-check-section">
+              <h3>Camera Setup</h3>
+              <p>Enable your camera for emotion and eye tracking during the interview.</p>
+
+              {cameraStatus === 'idle' && (
+                <button className="btn secondary" onClick={handleStartCamera}>
+                  Enable Camera
+                </button>
+              )}
+
+              {cameraStatus === 'checking' && (
+                <div className="status thinking">
+                  <div className="pulse-dot"></div>
+                  Starting camera...
+                </div>
+              )}
+
+              {cameraStatus === 'ready' && (
+                <div className="camera-preview">
+                  <div className="camera-preview-wrap">
+                    <img src="/api/video/feed" alt="Camera preview" />
+                  </div>
+                  <div className="camera-status-badges">
+                    <span className={`gaze-badge ${videoStatus.face_detected ? 'detected' : 'not-detected'}`}>
+                      {videoStatus.face_detected ? 'Face detected' : 'No face detected'}
+                    </span>
+                    <span className={`gaze-badge ${videoStatus.eye_status === 'on_screen' ? 'on' : 'off'}`}>
+                      {videoStatus.eye_status === 'on_screen' ? 'Looking at screen' : 'Looking away'}
+                    </span>
+                  </div>
+                  <span className="camera-ready-text">Camera ready!</span>
+                </div>
+              )}
+
+              {cameraStatus === 'error' && (
+                <div className="mic-test-result error">
+                  <span>Could not access camera. Check if another app is using it.</span>
+                  <button className="btn-link" onClick={() => setCameraStatus('idle')}>Try again</button>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="interview-start">
             <p>Ready to begin your practice interview for <strong>{jobTitle}</strong>?</p>
             <p className="hint">The interview is 15 minutes. {interviewerName} will speak first.</p>
             <button
               className="btn primary"
               onClick={startInterview}
-              disabled={micStatus !== 'success'}
+              disabled={micStatus !== 'success' || cameraStatus !== 'ready'}
             >
               Begin Interview
             </button>
-            {micStatus !== 'success' && (
-              <p className="hint">Complete the mic test above to enable this button</p>
+            {(micStatus !== 'success' || cameraStatus !== 'ready') && (
+              <p className="hint">
+                {micStatus !== 'success'
+                  ? 'Complete the mic test above to enable this button'
+                  : 'Enable your camera above to proceed'}
+              </p>
             )}
           </div>
         </div>
       ) : (
-        <>
-          <div className="chat-container">
-            {conversation.map((msg, i) => (
-              <div key={i} className={`chat-bubble ${msg.role}`}>
-                <div className="bubble-header">
-                  {msg.role === 'interviewer' ? interviewerName : 'You'}
-                </div>
-                <p>{msg.text}</p>
+        <div className="interview-body">
+          {isVideoActive && (
+            <div className="video-sidebar">
+              <div className="video-feed-wrap">
+                <img src="/api/video/feed" alt="Camera" />
               </div>
-            ))}
-            {isLoading && (
-              <div className="chat-bubble interviewer">
-                <div className="bubble-header">{interviewerName}</div>
-                <div className="typing-indicator">
-                  <span></span><span></span><span></span>
-                </div>
-              </div>
-            )}
-            <div ref={chatEndRef} />
-          </div>
 
-          <div className="controls">
-            <div className="status-bar">
-              {isPlaying && (
-                <div className="status speaking">
-                  <div className="pulse-dot"></div>
-                  {interviewerName} is speaking...
+              <div className="analysis-panel">
+                <h4>Emotion</h4>
+                <div className="dominant-emotion-badge">
+                  {videoStatus.face_detected
+                    ? videoStatus.emotion.charAt(0).toUpperCase() + videoStatus.emotion.slice(1)
+                    : 'No face'}
                 </div>
-              )}
-              {isListening && !isPlaying && !isLoading && (
-                <div className="status listening">
-                  <div className="pulse-dot"></div>
-                  Listening... speak now
+                <div className="emotion-bars">
+                  {['happy', 'sad', 'angry', 'neutral', 'fear'].map((emo) => (
+                    <div key={emo} className="emotion-row">
+                      <span className="emotion-label">{emo}</span>
+                      <div className="emotion-bar-bg">
+                        <div
+                          className={`emotion-bar-fill ${emo}`}
+                          style={{ width: `${Math.round(videoStatus.scores[emo] || 0)}%` }}
+                        />
+                      </div>
+                      <span className="emotion-pct">{Math.round(videoStatus.scores[emo] || 0)}%</span>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
+
+              <div className="analysis-panel">
+                <h4>Eye Tracking</h4>
+                <div className="eye-indicator">
+                  <div className="eye-dot-container">
+                    <div className="eye-iris"
+                      style={{
+                        left: `calc(50% + ${((videoStatus.gaze_x || 0.5) - 0.5) * 20}px)`,
+                        top: `calc(50% + ${((videoStatus.gaze_y || 0.5) - 0.5) * 20}px)`,
+                      }}
+                    >
+                      <div className="eye-pupil" />
+                    </div>
+                  </div>
+                  <div className="eye-dot-container">
+                    <div className="eye-iris"
+                      style={{
+                        left: `calc(50% + ${((videoStatus.gaze_x || 0.5) - 0.5) * 20}px)`,
+                        top: `calc(50% + ${((videoStatus.gaze_y || 0.5) - 0.5) * 20}px)`,
+                      }}
+                    >
+                      <div className="eye-pupil" />
+                    </div>
+                  </div>
+                </div>
+                <div className="gaze-direction-label">{videoStatus.eye_direction}</div>
+                <div className={`gaze-status-badge ${videoStatus.eye_status === 'on_screen' ? 'on' : 'off'}`}>
+                  {videoStatus.eye_status === 'on_screen' ? 'Looking at screen' : 'Looking away'}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="interview-main">
+            <div className="chat-container">
+              {conversation.map((msg, i) => (
+                <div key={i} className={`chat-bubble ${msg.role}`}>
+                  <div className="bubble-header">
+                    {msg.role === 'interviewer' ? interviewerName : 'You'}
+                  </div>
+                  <p>{msg.text}</p>
+                </div>
+              ))}
               {isLoading && (
-                <div className="status thinking">
-                  <div className="pulse-dot"></div>
-                  Thinking...
+                <div className="chat-bubble interviewer">
+                  <div className="bubble-header">{interviewerName}</div>
+                  <div className="typing-indicator">
+                    <span></span><span></span><span></span>
+                  </div>
                 </div>
               )}
-              {isGeneratingReport && (
-                <div className="status thinking">
-                  <div className="pulse-dot"></div>
-                  Generating your evaluation report...
-                </div>
-              )}
+              <div ref={chatEndRef} />
             </div>
 
-            {isListening && (
-              <div className="transcript-preview">
-                <p>{transcript || 'Listening...'}</p>
+            <div className="controls">
+              <div className="status-bar">
+                {isPlaying && (
+                  <div className="status speaking">
+                    <div className="pulse-dot"></div>
+                    {interviewerName} is speaking...
+                  </div>
+                )}
+                {isListening && !isPlaying && !isLoading && (
+                  <div className="status listening">
+                    <div className="pulse-dot"></div>
+                    Listening... speak now
+                  </div>
+                )}
+                {isLoading && (
+                  <div className="status thinking">
+                    <div className="pulse-dot"></div>
+                    Thinking...
+                  </div>
+                )}
+                {isGeneratingReport && (
+                  <div className="status thinking">
+                    <div className="pulse-dot"></div>
+                    Generating your evaluation report...
+                  </div>
+                )}
               </div>
-            )}
 
-            <div className="control-buttons">
-              <button
-                className="btn primary"
-                onClick={submitAnswer}
-                disabled={!isListening || !transcript.trim() || isLoading || isPlaying}
-              >
-                Send Answer
-              </button>
-              {isPlaying && (
-                <button className="btn secondary" onClick={stopAudio}>
-                  Skip Audio
-                </button>
+              {isListening && (
+                <div className="transcript-preview">
+                  <p>{transcript || 'Listening...'}</p>
+                </div>
               )}
+
+              <div className="control-buttons">
+                <button
+                  className="btn primary"
+                  onClick={submitAnswer}
+                  disabled={!isListening || !transcript.trim() || isLoading || isPlaying}
+                >
+                  Send Answer
+                </button>
+                {isPlaying && (
+                  <button className="btn secondary" onClick={stopAudio}>
+                    Skip Audio
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
