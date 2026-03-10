@@ -12,6 +12,7 @@ function PreferencesPage() {
   const [voices, setVoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [previewing, setPreviewing] = useState(false);
+  const [previewError, setPreviewError] = useState('');
   const audioRef = useRef(null);
 
   if (!user) {
@@ -55,6 +56,7 @@ function PreferencesPage() {
     }
 
     setPreviewing(true);
+    setPreviewError('');
     const name = selectedVoice?.name || 'Alex';
     const blob = await getTextToSpeech(
       `Hi ${user.name}, I'm ${name}. I'll be your interviewer today. Ready when you are!`,
@@ -70,9 +72,19 @@ function PreferencesPage() {
         URL.revokeObjectURL(url);
         audioRef.current = null;
       };
-      audio.play();
+      audio.onerror = () => {
+        setPreviewing(false);
+        setPreviewError('Audio playback failed. Try again.');
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+      };
+      audio.play().catch(() => {
+        setPreviewing(false);
+        setPreviewError('Browser blocked audio playback. Click to try again.');
+      });
     } else {
       setPreviewing(false);
+      setPreviewError('Voice preview failed. Check your ElevenLabs API key or try again.');
     }
   };
 
@@ -118,6 +130,7 @@ function PreferencesPage() {
                 <button className="btn secondary" onClick={previewVoice}>
                   {previewing ? 'Stop Preview' : `Preview ${selectedVoice.name}'s Voice`}
                 </button>
+                {previewError && <p className="hint" style={{ color: '#e74c3c' }}>{previewError}</p>}
               </div>
             )}
 

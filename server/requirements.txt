@@ -11,4 +11,8 @@ Pillow==11.1.0
 opencv-python==4.9.0.80
 numpy==1.26.4
 deepface==0.0.93
+tf-keras
 mediapipe==0.10.14
+protobuf>=4.25.3,<5
+google-api-core>=2.15.0
+googleapis-common-protos>=1.62.0

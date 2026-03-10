@@ -1,36 +1,39 @@
 from fastapi import APIRouter
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from services.video_analysis import (
-    gen_frames,
+    analyze_frame,
     get_latest_status,
-    start_video_processing,
-    stop_video_processing,
+    start_analysis,
+    stop_analysis,
 )
 
 router = APIRouter(prefix="/api/video")
 
 
+class FramePayload(BaseModel):
+    frame: str  # base64-encoded image from browser canvas
+
+
 @router.post("/start")
 async def start_camera():
-    """Start the camera and background processing thread."""
-    start_video_processing()
+    """Mark analysis as active (webcam is captured client-side)."""
+    start_analysis()
     return {"status": "started"}
 
 
 @router.post("/stop")
 async def stop_camera():
-    """Stop the camera and release resources."""
-    stop_video_processing()
+    """Mark analysis as inactive."""
+    stop_analysis()
     return {"status": "stopped"}
 
 
-@router.get("/feed")
-async def video_feed():
-    """MJPEG stream for the video feed."""
-    return StreamingResponse(
-        gen_frames(),
-        media_type="multipart/x-mixed-replace; boundary=frame",
-    )
+@router.post("/analyze")
+async def analyze(payload: FramePayload):
+    """Receive a base64 frame from the browser, run analysis, return results."""
+    result = analyze_frame(payload.frame)
+    return JSONResponse(content=result)
 
 
 @router.get("/status")

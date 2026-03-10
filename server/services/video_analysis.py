@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import math
+import base64
 import threading
 from deepface import DeepFace
 import mediapipe as mp
@@ -17,10 +18,7 @@ latest_result = {
 }
 result_lock = threading.Lock()
 
-# Camera
-cap = None
-camera_active = False
-processing_thread = None
+analysis_active = False
 
 EMOTIONS_KEEP = ["happy", "sad", "angry", "neutral", "fear"]
 
@@ -59,20 +57,14 @@ RIGHT_CHEEK = 454
 # ─── Gaze smoothing ───
 gaze_buffer_x = []
 gaze_buffer_y = []
-GAZE_BUFFER_SIZE = 5
+GAZE_BUFFER_SIZE = 3
 
 # Emotion smoothing
 smooth_scores = {e: 0.0 for e in EMOTIONS_KEEP}
 ALPHA = 0.35
 
-
-def get_camera():
-    global cap
-    if cap is None or not cap.isOpened():
-        cap = cv2.VideoCapture(0)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    return cap
+# Frame counter for emotion analysis frequency
+frame_count = 0
 
 
 def dist(p1, p2):
@@ -122,29 +114,38 @@ def analyze_gaze_mediapipe(frame):
     avg_x = (l_ratio_x + r_ratio_x) / 2
     avg_y = (l_ratio_y + r_ratio_y) / 2
 
-    # ── Head pose compensation ──
+    # ── Mirror horizontal axis for selfie camera ──
+    avg_x = 1.0 - avg_x
+
+    # ── Head pose compensation (subtle — iris position is the primary signal) ──
     face_center_x = (lm[LEFT_CHEEK].x + lm[RIGHT_CHEEK].x) / 2
     face_center_y = (lm[FOREHEAD].y + lm[CHIN].y) / 2
 
-    head_yaw = (lm[NOSE_TIP].x - face_center_x) * 2.5
-    head_pitch = (lm[NOSE_TIP].y - face_center_y) * 1.8
+    head_yaw = (lm[NOSE_TIP].x - face_center_x) * -0.6  # negated for mirror
+    head_pitch = (lm[NOSE_TIP].y - face_center_y) * 0.4
 
     gaze_x = avg_x + head_yaw
     gaze_y = avg_y + head_pitch
 
-    # ── Temporal smoothing ──
-    gaze_buffer_x.append(gaze_x)
-    gaze_buffer_y.append(gaze_y)
+    # ── Lightweight EMA smoothing (responsive but stable) ──
+    SMOOTH_ALPHA = 0.5  # higher = more responsive
+    if gaze_buffer_x:
+        smooth_x = gaze_buffer_x[-1] * (1 - SMOOTH_ALPHA) + gaze_x * SMOOTH_ALPHA
+        smooth_y = gaze_buffer_y[-1] * (1 - SMOOTH_ALPHA) + gaze_y * SMOOTH_ALPHA
+    else:
+        smooth_x = gaze_x
+        smooth_y = gaze_y
+
+    gaze_buffer_x.append(smooth_x)
+    gaze_buffer_y.append(smooth_y)
     if len(gaze_buffer_x) > GAZE_BUFFER_SIZE:
         gaze_buffer_x.pop(0)
+    if len(gaze_buffer_y) > GAZE_BUFFER_SIZE:
         gaze_buffer_y.pop(0)
 
-    smooth_x = sum(gaze_buffer_x) / len(gaze_buffer_x)
-    smooth_y = sum(gaze_buffer_y) / len(gaze_buffer_y)
-
     # ── Direction classification ──
-    H_THRESH = 0.28
-    V_THRESH = 0.25
+    H_THRESH = 0.13
+    V_THRESH = 0.12
 
     h_dir = "center"
     v_dir = ""
@@ -176,123 +177,116 @@ def analyze_gaze_mediapipe(frame):
     return status, direction, out_x, out_y
 
 
-def process_frames():
-    """Background thread: emotion + eye analysis."""
-    global smooth_scores
-    cam = get_camera()
-    frame_count = 0
+def decode_base64_frame(base64_str):
+    """Decode a base64-encoded image (from browser canvas) into an OpenCV frame."""
+    # Strip data URI prefix if present (e.g. "data:image/jpeg;base64,...")
+    if "," in base64_str:
+        base64_str = base64_str.split(",", 1)[1]
 
-    while camera_active:
-        ret, frame = cam.read()
-        if not ret:
-            continue
+    img_bytes = base64.b64decode(base64_str)
+    np_arr = np.frombuffer(img_bytes, np.uint8)
+    frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    return frame
 
-        frame = cv2.flip(frame, 1)
-        frame_count += 1
 
-        result = {
-            "emotion": "neutral",
-            "scores": {e: 0 for e in EMOTIONS_KEEP},
-            "eye_status": "unknown",
-            "eye_direction": "center",
-            "gaze_x": 0.5,
-            "gaze_y": 0.5,
-            "face_detected": False,
-        }
+def analyze_frame(base64_str):
+    """Analyze a single frame sent from the browser.
+    Runs gaze tracking every call, emotion detection every 3rd call.
+    Returns the analysis result dict.
+    """
+    global smooth_scores, frame_count
 
-        # ── Eye tracking every frame (fast with MediaPipe) ──
+    if not analysis_active:
+        return get_latest_status()
+
+    frame = decode_base64_frame(base64_str)
+    if frame is None:
+        return get_latest_status()
+
+    frame_count += 1
+
+    result = {
+        "emotion": "neutral",
+        "scores": {e: 0 for e in EMOTIONS_KEEP},
+        "eye_status": "unknown",
+        "eye_direction": "center",
+        "gaze_x": 0.5,
+        "gaze_y": 0.5,
+        "face_detected": False,
+    }
+
+    # ── Eye tracking every frame (fast with MediaPipe) ──
+    try:
+        eye_status, eye_dir, gx, gy = analyze_gaze_mediapipe(frame)
+        result["eye_status"] = eye_status
+        result["eye_direction"] = eye_dir
+        result["gaze_x"] = round(gx, 3)
+        result["gaze_y"] = round(gy, 3)
+        if eye_status != "unknown":
+            result["face_detected"] = True
+    except Exception:
+        pass
+
+    # ── Emotion analysis every 3 frames (heavier) ──
+    if frame_count % 3 == 0:
         try:
-            eye_status, eye_dir, gx, gy = analyze_gaze_mediapipe(frame)
-            result["eye_status"] = eye_status
-            result["eye_direction"] = eye_dir
-            result["gaze_x"] = round(gx, 3)
-            result["gaze_y"] = round(gy, 3)
-            if eye_status != "unknown":
+            analyses = DeepFace.analyze(
+                frame,
+                actions=["emotion"],
+                enforce_detection=False,
+                silent=True,
+                detector_backend="opencv",
+            )
+
+            if analyses and len(analyses) > 0:
+                analysis = analyses[0]
+                raw_emotions = analysis.get("emotion", {})
+
+                filtered = {}
+                for emo in EMOTIONS_KEEP:
+                    filtered[emo] = raw_emotions.get(emo, 0)
+
+                total = sum(filtered.values())
+                if total > 0:
+                    for emo in EMOTIONS_KEEP:
+                        filtered[emo] = (filtered[emo] / total) * 100
+
+                for emo in EMOTIONS_KEEP:
+                    smooth_scores[emo] = smooth_scores[emo] * (1 - ALPHA) + filtered[emo] * ALPHA
+
+                dominant = max(smooth_scores, key=smooth_scores.get)
+                result["emotion"] = dominant
+                result["scores"] = {e: round(smooth_scores[e], 1) for e in EMOTIONS_KEEP}
                 result["face_detected"] = True
+
         except Exception:
             pass
-
-        # ── Emotion analysis every 3 frames (heavier) ──
-        if frame_count % 3 == 0:
-            try:
-                analyses = DeepFace.analyze(
-                    frame,
-                    actions=["emotion"],
-                    enforce_detection=False,
-                    silent=True,
-                    detector_backend="opencv",
-                )
-
-                if analyses and len(analyses) > 0:
-                    analysis = analyses[0]
-                    raw_emotions = analysis.get("emotion", {})
-
-                    filtered = {}
-                    for emo in EMOTIONS_KEEP:
-                        filtered[emo] = raw_emotions.get(emo, 0)
-
-                    total = sum(filtered.values())
-                    if total > 0:
-                        for emo in EMOTIONS_KEEP:
-                            filtered[emo] = (filtered[emo] / total) * 100
-
-                    for emo in EMOTIONS_KEEP:
-                        smooth_scores[emo] = smooth_scores[emo] * (1 - ALPHA) + filtered[emo] * ALPHA
-
-                    dominant = max(smooth_scores, key=smooth_scores.get)
-                    result["emotion"] = dominant
-                    result["scores"] = {e: round(smooth_scores[e], 1) for e in EMOTIONS_KEEP}
-                    result["face_detected"] = True
-
-            except Exception:
-                pass
-        else:
-            # Keep previous emotion scores between analysis frames
-            with result_lock:
-                result["emotion"] = latest_result["emotion"]
-                result["scores"] = latest_result["scores"]
-
+    else:
+        # Keep previous emotion scores between analysis frames
         with result_lock:
-            latest_result.update(result)
+            result["emotion"] = latest_result["emotion"]
+            result["scores"] = latest_result["scores"]
+
+    with result_lock:
+        latest_result.update(result)
+
+    return result
 
 
-def gen_frames():
-    """MJPEG stream for video feed."""
-    cam = get_camera()
-    while camera_active:
-        ret, frame = cam.read()
-        if not ret:
-            continue
-        frame = cv2.flip(frame, 1)
-        _, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-        yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
-
-
-def start_video_processing():
-    """Start the camera and background processing thread."""
-    global camera_active, processing_thread, smooth_scores, gaze_buffer_x, gaze_buffer_y
-    if camera_active:
-        return
-    # Reset state
+def start_analysis():
+    """Mark analysis as active and reset state."""
+    global analysis_active, smooth_scores, gaze_buffer_x, gaze_buffer_y, frame_count
     smooth_scores = {e: 0.0 for e in EMOTIONS_KEEP}
     gaze_buffer_x.clear()
     gaze_buffer_y.clear()
-    camera_active = True
-    get_camera()
-    processing_thread = threading.Thread(target=process_frames, daemon=True)
-    processing_thread.start()
+    frame_count = 0
+    analysis_active = True
 
 
-def stop_video_processing():
-    """Stop the camera and release resources."""
-    global camera_active, cap, processing_thread
-    camera_active = False
-    if processing_thread is not None:
-        processing_thread.join(timeout=2)
-        processing_thread = None
-    if cap is not None and cap.isOpened():
-        cap.release()
-        cap = None
+def stop_analysis():
+    """Mark analysis as inactive."""
+    global analysis_active
+    analysis_active = False
 
 
 def get_latest_status():

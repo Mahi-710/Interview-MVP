@@ -46,7 +46,7 @@ function InterviewPage() {
   const navigate = useNavigate();
   const { isListening, transcript, startListening, stopListening, setTranscript } = useSpeechRecognition();
   const { isPlaying, playAudio, speakFallback, stop: stopAudio } = useAudioPlayer();
-  const { videoStatus, isVideoActive, startVideo, stopVideo } = useVideoAnalysis();
+  const { videoStatus, isVideoActive, startVideo, stopVideo, videoRef } = useVideoAnalysis();
   const [isLoading, setIsLoading] = useState(false);
   const [cameraStatus, setCameraStatus] = useState('idle'); // idle | checking | ready | error
   const [isStarted, setIsStarted] = useState(false);
@@ -435,7 +435,7 @@ function InterviewPage() {
               {cameraStatus === 'ready' && (
                 <div className="camera-preview">
                   <div className="camera-preview-wrap">
-                    <img src="/api/video/feed" alt="Camera preview" />
+                    <video ref={videoRef} autoPlay playsInline muted />
                   </div>
                   <div className="camera-status-badges">
                     <span className={`gaze-badge ${videoStatus.face_detected ? 'detected' : 'not-detected'}`}>
@@ -482,7 +482,7 @@ function InterviewPage() {
           {isVideoActive && (
             <div className="video-sidebar">
               <div className="video-feed-wrap">
-                <img src="/api/video/feed" alt="Camera" />
+                <video ref={videoRef} autoPlay playsInline muted />
               </div>
 
               <div className="analysis-panel">

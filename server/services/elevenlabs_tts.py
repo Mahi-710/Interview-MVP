@@ -1,5 +1,5 @@
 import os
-from elevenlabs import ElevenLabs
+from elevenlabs import ElevenLabs, VoiceSettings
 
 client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
 
@@ -30,11 +30,11 @@ def text_to_speech(text: str, voice_id: str = None) -> bytes:
         text=clean_text,
         model_id="eleven_multilingual_v2",
         output_format="mp3_44100_128",
-        voice_settings={
-            "stability": 0.4,
-            "similarity_boost": 0.75,
-            "speed": 1.2,
-        },
+        voice_settings=VoiceSettings(
+            stability=0.4,
+            similarity_boost=0.75,
+            speed=1.2,
+        ),
     )
 
     chunks = []

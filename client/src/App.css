@@ -870,11 +870,13 @@ textarea:focus {
   background: #000;
 }
 
-.video-feed-wrap img {
+.video-feed-wrap video {
   display: block;
   width: 100%;
   height: auto;
   border-radius: calc(var(--radius) - 1px);
+  transform: scaleX(-1);
+  object-fit: cover;
 }
 
 /* Analysis panels */
@@ -1051,12 +1053,14 @@ textarea:focus {
   background: #000;
 }
 
-.camera-preview-wrap img {
+.camera-preview-wrap video {
   display: block;
   width: 100%;
   max-width: 320px;
   height: auto;
   margin: 0 auto;
+  transform: scaleX(-1);
+  object-fit: cover;
 }
 
 .camera-status-badges {
