@@ -44,7 +44,18 @@ function InterviewPage() {
     voiceId, interviewerName,
   } = useInterview();
   const navigate = useNavigate();
-  const { isListening, transcript, startListening, stopListening, setTranscript } = useSpeechRecognition();
+  const submitAnswerRef = useRef(null);
+
+  const handleSilenceTimeout = useCallback(() => {
+    if (submitAnswerRef.current) {
+      submitAnswerRef.current();
+    }
+  }, []);
+
+  const { isListening, transcript, startListening, stopListening, setTranscript } = useSpeechRecognition({
+    silenceTimeoutMs: 3000,
+    onSilenceTimeout: handleSilenceTimeout,
+  });
   const { isPlaying, playAudio, speakFallback, stop: stopAudio } = useAudioPlayer();
   const { videoStatus, isVideoActive, startVideo, stopVideo, videoRef } = useVideoAnalysis();
   const [isLoading, setIsLoading] = useState(false);
@@ -313,6 +324,11 @@ function InterviewPage() {
     }
   };
 
+  // Keep ref in sync so the silence callback always calls the latest version
+  useEffect(() => {
+    submitAnswerRef.current = submitAnswer;
+  });
+
   const questionCount = conversation.filter((m) => m.role === 'interviewer').length;
   const timerWarning = timeLeft <= 120; // last 2 minutes
   const timerCritical = timeLeft <= 30; // last 30 seconds
@@ -572,7 +588,7 @@ function InterviewPage() {
                 {isListening && !isPlaying && !isLoading && (
                   <div className="status listening">
                     <div className="pulse-dot"></div>
-                    Listening... speak now
+                    Listening... (auto-sends when you pause)
                   </div>
                 )}
                 {isLoading && (
@@ -596,13 +612,6 @@ function InterviewPage() {
               )}
 
               <div className="control-buttons">
-                <button
-                  className="btn primary"
-                  onClick={submitAnswer}
-                  disabled={!isListening || !transcript.trim() || isLoading || isPlaying}
-                >
-                  Send Answer
-                </button>
                 {isPlaying && (
                   <button className="btn secondary" onClick={stopAudio}>
                     Skip Audio
