@@ -579,30 +579,27 @@ function InterviewPage() {
 
             <div className="controls">
               <div className="status-bar">
-                {isPlaying && (
-                  <div className="status speaking">
-                    <div className="pulse-dot"></div>
-                    {interviewerName} is speaking...
-                  </div>
-                )}
-                {isListening && !isPlaying && !isLoading && (
-                  <div className="status listening">
-                    <div className="pulse-dot"></div>
-                    Listening... (auto-sends when you pause)
-                  </div>
-                )}
-                {isLoading && (
-                  <div className="status thinking">
-                    <div className="pulse-dot"></div>
-                    Thinking...
-                  </div>
-                )}
-                {isGeneratingReport && (
+                {isGeneratingReport ? (
                   <div className="status thinking">
                     <div className="pulse-dot"></div>
                     Generating your evaluation report...
                   </div>
-                )}
+                ) : isPlaying ? (
+                  <div className="status speaking">
+                    <div className="pulse-dot"></div>
+                    {interviewerName} is speaking...
+                  </div>
+                ) : isLoading ? (
+                  <div className="status thinking">
+                    <div className="pulse-dot"></div>
+                    Thinking...
+                  </div>
+                ) : isListening ? (
+                  <div className="status listening">
+                    <div className="pulse-dot"></div>
+                    Listening... (auto-sends when you pause)
+                  </div>
+                ) : null}
               </div>
 
               {isListening && (
