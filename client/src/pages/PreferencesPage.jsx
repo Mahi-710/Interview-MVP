@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useInterview } from '../context/InterviewContext';
 import { fetchVoices, getTextToSpeech } from '../utils/api';
+import Navbar from '../components/Navbar';
+import Stepper from '../components/Stepper';
 
 function PreferencesPage() {
   const { user } = useAuth();
@@ -12,6 +14,7 @@ function PreferencesPage() {
   const [voices, setVoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [previewing, setPreviewing] = useState(false);
+  const [previewError, setPreviewError] = useState('');
   const audioRef = useRef(null);
 
   if (!user) {
@@ -36,7 +39,6 @@ function PreferencesPage() {
     setVoiceId(id);
     const voice = voices.find((v) => v.id === id);
     if (voice) setInterviewerName(voice.name);
-    // Stop any playing preview
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
@@ -55,6 +57,7 @@ function PreferencesPage() {
     }
 
     setPreviewing(true);
+    setPreviewError('');
     const name = selectedVoice?.name || 'Alex';
     const blob = await getTextToSpeech(
       `Hi ${user.name}, I'm ${name}. I'll be your interviewer today. Ready when you are!`,
@@ -70,9 +73,19 @@ function PreferencesPage() {
         URL.revokeObjectURL(url);
         audioRef.current = null;
       };
-      audio.play();
+      audio.onerror = () => {
+        setPreviewing(false);
+        setPreviewError('Audio playback failed. Try again.');
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+      };
+      audio.play().catch(() => {
+        setPreviewing(false);
+        setPreviewError('Browser blocked audio playback. Click to try again.');
+      });
     } else {
       setPreviewing(false);
+      setPreviewError('Voice preview failed. Check your ElevenLabs API key or try again.');
     }
   };
 
@@ -81,56 +94,75 @@ function PreferencesPage() {
   };
 
   return (
-    <div className="page setup-page">
-      <div className="card setup-card">
-        <h1>Choose Your Interviewer</h1>
-        <p className="subtitle">Pick who you'd like to interview with. You can preview their voice before starting.</p>
+    <div className="page-wrapper">
+      <Navbar />
+      <div className="page-content">
+        <Stepper currentStep={2} />
 
-        {loading ? (
-          <p className="hint">Loading voices...</p>
-        ) : (
-          <>
-            <div className="voice-grid">
-              {voices.map((voice) => (
-                <button
-                  key={voice.id}
-                  className={`voice-card ${voiceId === voice.id ? 'selected' : ''}`}
-                  onClick={() => handleVoiceChange(voice.id)}
-                >
-                  <div className="voice-avatar">
-                    {voice.gender === 'Male' ? '👨' : '👩'}
-                  </div>
-                  <div className="voice-info">
-                    <span className="voice-name">{voice.name}</span>
-                    <span className="voice-meta">{voice.accent} · {voice.gender}</span>
-                    <span className="voice-tone">{voice.tone}</span>
-                  </div>
-                  {voiceId === voice.id && <div className="voice-check">✓</div>}
+        <div className="card setup-card">
+          <h2>Choose Your Interviewer</h2>
+          <p className="subtitle">Pick the voice and style you'd like to interview with. Preview before you commit.</p>
+
+          {loading ? (
+            <p className="hint">Loading voices...</p>
+          ) : (
+            <>
+              <div className="voice-grid">
+                {voices.map((voice) => (
+                  <button
+                    key={voice.id}
+                    className={`voice-card ${voiceId === voice.id ? 'selected' : ''}`}
+                    onClick={() => handleVoiceChange(voice.id)}
+                  >
+                    <div className="voice-avatar">
+                      {voice.gender === 'Male' ? '👨' : '👩'}
+                    </div>
+                    <div className="voice-info">
+                      <span className="voice-name">{voice.name}</span>
+                      <span className="voice-meta">{voice.accent} · {voice.gender}</span>
+                      <span className="voice-tone">{voice.tone}</span>
+                    </div>
+                    {voiceId === voice.id && (
+                      <div className="voice-check">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {selectedVoice && (
+                <div className="voice-preview-section">
+                  <p>
+                    Your interviewer: <strong>{selectedVoice.name}</strong> · {selectedVoice.accent} · {selectedVoice.gender}
+                  </p>
+                  <button className="btn secondary preview-btn" onClick={previewVoice}>
+                    {previewing ? 'Stop Preview' : `Preview ${selectedVoice.name}`}
+                  </button>
+                  {previewError && <p className="hint" style={{ color: '#e74c3c' }}>{previewError}</p>}
+                </div>
+              )}
+
+              <div className="session-info">
+                <span>15-minute session</span>
+                <span>10-13 questions</span>
+                <span>Voice conversation</span>
+                <span>Full evaluation report</span>
+              </div>
+
+              <div className="preference-actions">
+                <button className="btn secondary" onClick={() => navigate('/setup')}>
+                  ← Back
                 </button>
-              ))}
-            </div>
-
-            {selectedVoice && (
-              <div className="voice-preview-section">
-                <p>
-                  Your interviewer: <strong>{selectedVoice.name}</strong>
-                </p>
-                <button className="btn secondary" onClick={previewVoice}>
-                  {previewing ? 'Stop Preview' : `Preview ${selectedVoice.name}'s Voice`}
+                <button className="btn primary" onClick={proceed}>
+                  Continue to Interview →
                 </button>
               </div>
-            )}
-
-            <div className="preference-actions">
-              <button className="btn secondary" onClick={() => navigate('/setup')}>
-                Back
-              </button>
-              <button className="btn primary" onClick={proceed}>
-                Continue to Interview
-              </button>
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

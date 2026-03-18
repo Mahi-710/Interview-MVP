@@ -13,7 +13,9 @@
       "Bash(python -m pip install:*)",
       "WebSearch",
       "WebFetch(domain:elevenlabs.io)",
-      "WebFetch(domain:elevenlabs-sdk.mintlify.app)"
+      "WebFetch(domain:elevenlabs-sdk.mintlify.app)",
+      "Bash(npm run build:*)",
+      "Bash(docker compose:*)"
     ]
   }
 }

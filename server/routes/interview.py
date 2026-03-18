@@ -63,7 +63,9 @@ async def interview_tts(req: TTSRequest):
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
         print(f"TTS error: {e}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail="TTS failed")
 
 
