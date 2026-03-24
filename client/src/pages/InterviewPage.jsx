@@ -43,7 +43,7 @@ function InterviewPage() {
     resumeText, jobDescription, jobTitle,
     conversation, addMessage,
     setEvaluation, setIsInterviewComplete,
-    voiceId, interviewerName,
+    voiceId, interviewerName, focusArea,
   } = useInterview();
   const navigate = useNavigate();
   const submitAnswerRef = useRef(null);
@@ -59,12 +59,15 @@ function InterviewPage() {
     onSilenceTimeout: handleSilenceTimeout,
   });
   const { isPlaying, playAudio, speakFallback, stop: stopAudio } = useAudioPlayer();
-  const { videoStatus, isVideoActive, startVideo, stopVideo, videoRef } = useVideoAnalysis();
+  const { videoStatus, isVideoActive, startVideo, stopVideo, videoRef, blurMode, setBlurMode, blurCanvasRef } = useVideoAnalysis();
   const [isLoading, setIsLoading] = useState(false);
   const [cameraStatus, setCameraStatus] = useState('idle');
   const [isStarted, setIsStarted] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const chatEndRef = useRef(null);
+
+  // Consent state
+  const [hasConsented, setHasConsented] = useState(false);
 
   // Mic test state
   const [micStatus, setMicStatus] = useState('idle');
@@ -263,6 +266,7 @@ function InterviewPage() {
         conversationHistory: [],
         userMessage: '[Interview begins]',
         interviewerName,
+        focusArea,
       });
       addMessage('interviewer', reply);
       setIsLoading(false);
@@ -293,6 +297,7 @@ function InterviewPage() {
         conversationHistory: updatedHistory,
         userMessage: answer,
         interviewerName,
+        focusArea,
       });
       addMessage('interviewer', reply);
       setIsLoading(false);
@@ -377,6 +382,61 @@ function InterviewPage() {
 
         {!isStarted ? (
           <div className="pre-interview">
+
+            {/* ── Privacy Consent ─────────────────────────────────── */}
+            {!hasConsented ? (
+              <div className="consent-card">
+                <div className="consent-icon">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                </div>
+                <h2 className="consent-title">Your Privacy, Guaranteed</h2>
+                <p className="consent-subtitle">
+                  Before we begin, here's exactly what we do — and don't do — with your data.
+                </p>
+
+                <ul className="consent-list">
+                  <li className="consent-list-item">
+                    <span className="consent-check">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    </span>
+                    <span><strong>Resume &amp; Job Description</strong> — used only to personalise your interview session. Never stored on our servers.</span>
+                  </li>
+                  <li className="consent-list-item">
+                    <span className="consent-check">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    </span>
+                    <span><strong>Video feed</strong> — processed entirely in your browser for emotion and eye-tracking feedback. We never record, upload, or store your video.</span>
+                  </li>
+                  <li className="consent-list-item">
+                    <span className="consent-check">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    </span>
+                    <span><strong>Microphone</strong> — your voice is transcribed live and never recorded or sent as audio to any server.</span>
+                  </li>
+                  <li className="consent-list-item">
+                    <span className="consent-check">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    </span>
+                    <span><strong>Session data</strong> — everything is cleared the moment you close or refresh the page. Nothing persists.</span>
+                  </li>
+                </ul>
+
+                <button className="btn primary consent-btn" onClick={() => setHasConsented(true)}>
+                  I Understand &amp; Agree — Let's Begin
+                </button>
+              </div>
+            ) : (
+            <>
             <div className="mic-test-section">
               <div className="section-header">
                 <div className="section-icon mic-icon">
@@ -489,8 +549,79 @@ function InterviewPage() {
                 {cameraStatus === 'ready' && (
                   <div className="camera-preview">
                     <div className="camera-preview-wrap">
+                      {/* Video always plays — never hidden, so the browser keeps decoding frames */}
                       <video ref={videoRef} autoPlay playsInline muted />
+                      {/* Canvas overlays the video when blur is active */}
+                      {blurMode !== 'none' && (
+                        <canvas
+                          ref={blurCanvasRef}
+                          width={640}
+                          height={480}
+                          className="blur-display-canvas"
+                        />
+                      )}
                     </div>
+
+                    <div className="blur-selector">
+                      <p className="blur-selector-label">Background effect</p>
+                      <div className="blur-options">
+                        <button
+                          className={`blur-option-btn ${blurMode === 'none' ? 'active' : ''}`}
+                          onClick={() => setBlurMode('none')}
+                        >
+                          {/* Normal: clear striped background */}
+                          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="48" height="32" rx="3" fill="#edf0f7"/>
+                            <line x1="0" y1="8"  x2="48" y2="8"  stroke="#cdd2e2" strokeWidth="1.2"/>
+                            <line x1="0" y1="16" x2="48" y2="16" stroke="#cdd2e2" strokeWidth="1.2"/>
+                            <line x1="0" y1="24" x2="48" y2="24" stroke="#cdd2e2" strokeWidth="1.2"/>
+                            <circle cx="24" cy="14" r="6" fill="#8b92b5"/>
+                            <path d="M10 32 Q10 22 24 22 Q38 22 38 32Z" fill="#8b92b5"/>
+                          </svg>
+                          Normal
+                        </button>
+                        <button
+                          className={`blur-option-btn ${blurMode === 'mild' ? 'active' : ''}`}
+                          onClick={() => setBlurMode('mild')}
+                        >
+                          {/* Mild blur: soft blobs behind person */}
+                          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                              <filter id="blur-icon-mild">
+                                <feGaussianBlur stdDeviation="2.5"/>
+                              </filter>
+                            </defs>
+                            <rect width="48" height="32" rx="3" fill="#edf0f7"/>
+                            <circle cx="8"  cy="8"  r="10" fill="#b8bfd4" filter="url(#blur-icon-mild)"/>
+                            <circle cx="42" cy="26" r="12" fill="#c5cade" filter="url(#blur-icon-mild)"/>
+                            <circle cx="24" cy="32" r="10" fill="#d0d4e4" filter="url(#blur-icon-mild)"/>
+                            <circle cx="24" cy="14" r="6" fill="#8b92b5"/>
+                            <path d="M10 32 Q10 22 24 22 Q38 22 38 32Z" fill="#8b92b5"/>
+                          </svg>
+                          Mild Blur
+                        </button>
+                        <button
+                          className={`blur-option-btn ${blurMode === 'full' ? 'active' : ''}`}
+                          onClick={() => setBlurMode('full')}
+                        >
+                          {/* Full blur: heavy blobs, foggy background */}
+                          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                              <filter id="blur-icon-full">
+                                <feGaussianBlur stdDeviation="5"/>
+                              </filter>
+                            </defs>
+                            <rect width="48" height="32" rx="3" fill="#cdd2e2"/>
+                            <circle cx="6"  cy="8"  r="16" fill="#9ba5c0" filter="url(#blur-icon-full)"/>
+                            <circle cx="42" cy="26" r="18" fill="#a8b2c8" filter="url(#blur-icon-full)"/>
+                            <circle cx="24" cy="14" r="6" fill="#5b6480"/>
+                            <path d="M10 32 Q10 22 24 22 Q38 22 38 32Z" fill="#5b6480"/>
+                          </svg>
+                          Full Blur
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="camera-status-badges">
                       <span className={`gaze-badge ${videoStatus.face_detected ? 'detected' : 'not-detected'}`}>
                         {videoStatus.face_detected ? 'Face detected' : 'No face detected'}
@@ -530,13 +661,25 @@ function InterviewPage() {
                 </p>
               )}
             </div>
+
+            </> )} {/* end hasConsented */}
           </div>
         ) : (
           <div className="interview-body">
             {isVideoActive && (
               <div className="video-sidebar">
                 <div className="video-feed-wrap">
+                  {/* Video always plays — never hidden */}
                   <video ref={videoRef} autoPlay playsInline muted />
+                  {/* Canvas overlays the video when blur is active */}
+                  {blurMode !== 'none' && (
+                    <canvas
+                      ref={blurCanvasRef}
+                      width={640}
+                      height={480}
+                      className="blur-display-canvas"
+                    />
+                  )}
                 </div>
 
                 <div className="analysis-panel">

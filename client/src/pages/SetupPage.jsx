@@ -8,7 +8,7 @@ import Stepper from '../components/Stepper';
 
 function SetupPage() {
   const { user } = useAuth();
-  const { setResumeText, setJobDescription, setJobTitle, resumeText, jobDescription, jobTitle } = useInterview();
+  const { setResumeText, setJobDescription, setJobTitle, resumeText, jobDescription, jobTitle, focusArea, setFocusArea } = useInterview();
   const navigate = useNavigate();
   const [uploading, setUploading] = useState(false);
   const [inputMode, setInputMode] = useState('upload');
@@ -112,7 +112,7 @@ function SetupPage() {
                         </svg>
                       </div>
                       <span className="upload-text">Click to upload your resume PDF</span>
-                      <span className="upload-hint">Supports text-based and scanned PDFs (OCR)</span>
+                      {/* <span className="upload-hint">  Supports text-based and scanned PDFs (OCR)</span> */}
                     </>
                   )}
                 </label>
@@ -138,6 +138,31 @@ The AI will tailor interview questions to match the role's requirements."
               rows={6}
             />
             <div className="char-count">{jobDescription.length} characters</div>
+          </div>
+
+          <div className="form-group">
+            <label>Interview Focus</label>
+            <p className="label-hint-block">What should the interviewer concentrate on?</p>
+            <div className="focus-area-grid">
+              {[
+                { key: 'full_screening', icon: '🎯', label: 'Full Screening', desc: 'Cover everything' },
+                { key: 'experience', icon: '💼', label: 'Experience & Projects', desc: 'Deep-dive into your work history' },
+                { key: 'technical', icon: '⚙️', label: 'Technical Skills', desc: 'Test your tech stack & problem-solving' },
+                { key: 'behavioral', icon: '🤝', label: 'Behavioral / Soft Skills', desc: 'Leadership, teamwork, communication' },
+                { key: 'role_fit', icon: '📋', label: 'Role Fit', desc: 'Match against this specific JD' },
+              ].map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  className={`focus-card ${focusArea === opt.key ? 'selected' : ''}`}
+                  onClick={() => setFocusArea(opt.key)}
+                >
+                  <span className="focus-card-icon">{opt.icon}</span>
+                  <span className="focus-card-label">{opt.label}</span>
+                  <span className="focus-card-desc">{opt.desc}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="setup-footer">

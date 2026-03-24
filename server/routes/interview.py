@@ -16,6 +16,7 @@ class ChatRequest(BaseModel):
     conversationHistory: list = []
     userMessage: str
     interviewerName: Optional[str] = "Alex"
+    focusArea: Optional[str] = "full_screening"
 
 
 class TTSRequest(BaseModel):
@@ -38,7 +39,7 @@ async def list_voices():
 async def interview_chat(req: ChatRequest):
     try:
         system_prompt = build_system_prompt(
-            req.candidateName, req.jobTitle, req.resumeText, req.jobDescription, req.interviewerName
+            req.candidateName, req.jobTitle, req.resumeText, req.jobDescription, req.interviewerName, req.focusArea
         )
         reply = chat(system_prompt, req.conversationHistory, req.userMessage)
         is_complete = "###INTERVIEW_COMPLETE###" in reply

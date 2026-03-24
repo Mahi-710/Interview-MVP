@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mediapipe/selfie_segmentation": "^0.1.1675465747",
     "jspdf": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
