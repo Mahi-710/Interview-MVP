@@ -7,6 +7,27 @@ from PIL import Image, ImageFilter
 
 router = APIRouter(prefix="/api/resume")
 
+MAX_PDF_BYTES = 1 * 1024 * 1024  # 1 MB
+
+
+def validate_pdf(pdf_bytes: bytes):
+    # Basic header check
+    if not pdf_bytes.startswith(b"%PDF"):
+        raise ValueError("Invalid PDF: missing file header")
+
+    try:
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+
+        # Ensure PDF has pages
+        if not reader.pages or len(reader.pages) == 0:
+            raise ValueError("Invalid PDF: no pages found")
+
+        # Force parsing of first page
+        _ = reader.pages[0]
+
+    except Exception:
+        raise ValueError("Malformed or corrupted PDF file")
+
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     # Tier 1: Try direct text extraction (fast path for text-based PDFs)
@@ -55,13 +76,29 @@ async def parse_resume(resume: UploadFile = File(...)):
     if not resume.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files allowed")
 
-    if resume.size and resume.size > 10 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File too large (max 10MB)")
-
     try:
         pdf_bytes = await resume.read()
+
+        # ✅ 1MB size validation (reliable)
+        if len(pdf_bytes) > MAX_PDF_BYTES:
+            size_mb = len(pdf_bytes) / (1024 * 1024)
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large ({size_mb:.2f} MB) — max allowed is 1 MB"
+            )
+
+        # ✅ Malformed / corrupt PDF validation
+        try:
+            validate_pdf(pdf_bytes)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        # Existing extraction logic (unchanged)
         text = extract_text_from_pdf(pdf_bytes)
         return {"text": text}
+
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
