@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect  } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useInterview } from '../context/InterviewContext';
@@ -6,35 +6,218 @@ import { parseResumePDF } from '../utils/api';
 import Navbar from '../components/Navbar';
 import Stepper from '../components/Stepper';
 
+/* ─── constants ─────────────────────────────────────────────────────────── */
+const MAX_PDF_BYTES = 1 * 1024 * 1024;
+const JD_MIN = 200;
+const JD_MAX = 500;
+
+/* ─── helpers ────────────────────────────────────────────────────────────── */
+function wordCount(text) {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+function isTextOnly(value) {
+  return !/[^\x09\x0A\x0D\x20-\x7E\u00A0-\uFFFF]/.test(value);
+}
+
+/* ─── tiny sub-components ────────────────────────────────────────────────── */
+
+function FieldError({ message }) {
+  if (!message) return null;
+  return (
+    <p className="field-error">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.4" />
+        <line x1="8" y1="5" x2="8" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <circle cx="8" cy="11.5" r="0.8" fill="currentColor" />
+      </svg>
+      {message}
+    </p>
+  );
+}
+
+function FieldSuccess({ message }) {
+  if (!message) return null;
+  return (
+    <p className="field-success">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.4" />
+        <polyline points="5,8.5 7.2,10.5 11,6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      {message}
+    </p>
+  );
+}
+
+/* ─── validators ─────────────────────────────────────────────────────────── */
+const validateJobTitle = (v) => {
+  if (!v.trim()) return 'Job title is required.';
+  if (!isTextOnly(v)) return 'Job title must contain text only — no special characters.';
+  if (v.trim().length < 2) return 'Job title must be at least 2 characters.';
+  if (v.trim().length > 120) return 'Job title must be 120 characters or fewer.';
+  return '';
+};
+
+const validateJobDescription = (v) => {
+  if (!v.trim()) return 'Job description is required.';
+  if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(v)) {
+    return 'Job description contains invalid or unsupported characters.';
+  }
+
+  const w = wordCount(v);
+  if (w < JD_MIN) return `Too short — need at least ${JD_MIN} words (${JD_MIN - w} more).`;
+  if (w > JD_MAX) return `Too long — trim to ${JD_MAX} words (${w - JD_MAX} over).`;
+  return '';
+};
+
+const validateResumeText = (v) => {
+  if (!v.trim()) return 'Resume is required. Please upload a PDF or paste your text.';
+
+  if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(v)) {
+    return 'Resume contains invalid or unsupported characters.';
+  }
+
+  return '';
+};
+/* ─── component ──────────────────────────────────────────────────────────── */
+
 function SetupPage() {
   const { user } = useAuth();
-  const { setResumeText, setJobDescription, setJobTitle, resumeText, jobDescription, jobTitle, focusArea, setFocusArea } = useInterview();
+  const {
+    setResumeText, setJobDescription, setJobTitle,
+    resumeText, jobDescription, jobTitle, focusArea, setFocusArea,
+  } = useInterview();
   const navigate = useNavigate();
+
   const [uploading, setUploading] = useState(false);
   const [inputMode, setInputMode] = useState('upload');
   const [fileName, setFileName] = useState('');
+  const [touched, setTouched] = useState({ jobTitle: false, jobDescription: false, resume: false });
+  const [errors, setErrors] = useState({ jobTitle: '', jobDescription: '', resume: '' });
 
-  if (!user) {
-    navigate('/');
-    return null;
+const [jdInputMode, setJdInputMode] = useState('paste');
+const [jdFileName, setJdFileName] = useState('');
+const [jdUploading, setJdUploading] = useState(false);
+
+  if (!user) { navigate('/'); return null; }
+
+
+  const touch = (field) => setTouched((p) => ({ ...p, [field]: true }));
+
+  /* ── handlers ── */
+
+  const handleJDFileUpload = async (e) => {
+  const file = e.target.files[0];
+  touch('jobDescription');
+  if (!file) return;
+
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    setErrors((p) => ({ ...p, jobDescription: 'Only PDF files are accepted.' }));
+    e.target.value = '';
+    return;
   }
+
+  if (file.size > MAX_PDF_BYTES) {
+    const mb = (file.size / (1024 * 1024)).toFixed(2);
+    setErrors((p) => ({
+      ...p,
+      jobDescription: `File is too large (${mb} MB) — maximum allowed is 1 MB.`,
+    }));
+    e.target.value = '';
+    return;
+  }
+
+  setErrors((p) => ({ ...p, jobDescription: '' }));
+  setJdUploading(true);
+  setJdFileName(file.name);
+
+  try {
+    const text = await parseResumePDF(file);
+    setJobDescription(text);
+  } catch {
+    setErrors((p) => ({
+      ...p,
+      jobDescription: 'Could not parse this PDF. Try pasting instead.',
+    }));
+    setJdInputMode('paste');
+  }
+
+  setJdUploading(false);
+};
+  const handleJobTitleChange = (e) => {
+    const v = e.target.value;
+    setJobTitle(v);
+    setErrors((p) => ({ ...p, jobTitle: validateJobTitle(v) }));
+  };
+
+  const handleJobDescriptionChange = (e) => {
+    const v = e.target.value;
+    setJobDescription(v);
+    setErrors((p) => ({ ...p, jobDescription: validateJobDescription(v) }));
+  };
+
+  const handleResumeTextChange = (e) => {
+    const v = e.target.value;
+    setResumeText(v);
+    setErrors((p) => ({ ...p, resume: validateResumeText(v) }));
+  };
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
+    touch('resume');
     if (!file) return;
+
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setErrors((p) => ({ ...p, resume: 'Only PDF files are accepted.' }));
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_PDF_BYTES) {
+      const mb = (file.size / (1024 * 1024)).toFixed(2);
+      setErrors((p) => ({ ...p, resume: `File is too large (${mb} MB) — maximum allowed is 1 MB.` }));
+      e.target.value = '';
+      return;
+    }
+
+    setErrors((p) => ({ ...p, resume: '' }));
     setUploading(true);
     setFileName(file.name);
     try {
       const text = await parseResumePDF(file);
       setResumeText(text);
     } catch (err) {
-      alert('Failed to parse PDF: ' + err.message + '\nTry pasting your resume text instead.');
+      setErrors((p) => ({ ...p, resume: 'Could not parse this PDF. Try pasting your resume text instead.' }));
       setInputMode('paste');
     }
     setUploading(false);
   };
 
-  const canStart = resumeText.trim() && jobDescription.trim() && jobTitle.trim();
+  /* ── word-count bar ── */
+  const jdWords = wordCount(jobDescription);
+  const barPct = Math.min((jdWords / JD_MAX) * 100, 100);
+  const barColor =
+    jdWords === 0 ? 'var(--color-border-secondary, #ccc)' :
+    jdWords < JD_MIN ? '#E67E22' :
+    jdWords > JD_MAX ? '#C0392B' : '#27AE60';
+  const wcColor =
+    jdWords === 0 ? 'var(--color-text-tertiary)' :
+    jdWords < JD_MIN ? '#E67E22' :
+    jdWords > JD_MAX ? '#C0392B' : '#27AE60';
+  const wcLabel =
+    jdWords === 0 ? `0 words — ${JD_MIN} minimum` :
+    jdWords < JD_MIN ? `${jdWords} words — ${JD_MIN - jdWords} more needed` :
+    jdWords > JD_MAX ? `${jdWords} words — ${jdWords - JD_MAX} over limit` :
+    `${jdWords} words`;
+
+  /* ── upload box state ── */
+  const uploadState = errors.resume ? 'error' : (fileName && resumeText) ? 'success' : 'idle';
+
+  /* ── overall gate ── */
+  const resumeErr = validateResumeText(resumeText) || errors.resume;
+  const canStart =
+    !validateJobTitle(jobTitle) &&
+    !validateJobDescription(jobDescription) &&
+    !resumeErr &&
+    resumeText.trim().length > 0;
 
   return (
     <div className="page-wrapper">
@@ -44,102 +227,243 @@ function SetupPage() {
 
         <div className="card setup-card">
           <h2>Set Up Your Interview</h2>
-          <p className="subtitle">Welcome, <strong>{user.name}</strong>! Fill in the details below to get a tailored mock interview.</p>
+          <p className="subtitle">
+            Welcome, <strong>{user.name}</strong>! Fill in the details below to get a tailored mock interview.
+          </p>
 
+          {/* ── Job Title ── */}
           <div className="form-group">
             <label>Job Title</label>
             <input
               type="text"
               value={jobTitle}
-              onChange={(e) => setJobTitle(e.target.value)}
+              onChange={handleJobTitleChange}
+              onBlur={() => touch('jobTitle')}
               placeholder="e.g. Senior ML Engineer, Frontend Developer, Product Manager"
+              className={
+                touched.jobTitle
+                  ? errors.jobTitle ? 'input-error' : jobTitle.trim() ? 'input-ok' : ''
+                  : ''
+              }
             />
+            {touched.jobTitle && errors.jobTitle
+              ? <FieldError message={errors.jobTitle} />
+              : touched.jobTitle && jobTitle.trim()
+              ? <FieldSuccess message="Looks good" />
+              : null}
           </div>
 
+          {/* ── Resume ── */}
           <div className="form-group">
-            <label>Resume <span className="label-hint">(used to personalise your interview)</span></label>
+            <label>
+              Resume <span className="label-hint">(mandatory to personalise your interview)</span>
+            </label>
             <div className="toggle-group">
               <button
                 className={inputMode === 'upload' ? 'active' : ''}
-                onClick={() => setInputMode('upload')}
+                onClick={() => { setInputMode('upload'); setErrors((p) => ({ ...p, resume: '' })); }}
               >
                 Upload PDF
               </button>
               <button
                 className={inputMode === 'paste' ? 'active' : ''}
-                onClick={() => setInputMode('paste')}
+                onClick={() => { setInputMode('paste'); setErrors((p) => ({ ...p, resume: '' })); }}
               >
                 Paste Text
               </button>
             </div>
 
             {inputMode === 'upload' ? (
-              <div className="upload-area">
-                <input
-                  type="file"
-                  accept=".pdf"
-                  onChange={handleFileUpload}
-                  disabled={uploading}
-                  id="resume-upload"
-                />
-                <label htmlFor="resume-upload" className="upload-label">
-                  {uploading ? (
-                    <>
-                      <div className="upload-icon">
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/>
-                          <polyline points="14 2 14 8 20 8"/>
+              <>
+                <div className={`upload-area upload-area--${uploadState}`}>
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    onChange={handleFileUpload}
+                    disabled={uploading}
+                    id="resume-upload"
+                  />
+                  <label htmlFor="resume-upload" className="upload-label">
+                    <div className={`upload-icon-wrap upload-icon-wrap--${uploadState}`}>
+                      {uploading ? (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+                          <polyline points="14 2 14 8 20 8" />
                         </svg>
-                      </div>
-                      <span className="upload-text">Parsing resume (OCR may take a moment)...</span>
-                    </>
-                  ) : fileName && resumeText ? (
-                    <>
-                      <div className="upload-icon success">
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12"/>
+                      ) : uploadState === 'success' ? (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
                         </svg>
-                      </div>
-                      <span className="upload-text">{fileName}</span>
-                      <span className="upload-hint">{resumeText.length} characters extracted</span>
-                    </>
-                  ) : (
-                    <>
-                      <div className="upload-icon">
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/>
-                          <polyline points="14 2 14 8 20 8"/>
+                      ) : uploadState === 'error' ? (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="8" x2="12" y2="13" />
+                          <circle cx="12" cy="16.5" r="0.8" fill="currentColor" />
                         </svg>
-                      </div>
-                      <span className="upload-text">Click to upload your resume PDF</span>
-                      {/* <span className="upload-hint">  Supports text-based and scanned PDFs (OCR)</span> */}
-                    </>
-                  )}
-                </label>
-              </div>
+                      ) : (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+                          <polyline points="14 2 14 8 20 8" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="upload-body">
+                      {uploading ? (
+                        <>
+                          <span className="upload-title">Parsing resume…</span>
+                          <span className="upload-sub">OCR may take a moment</span>
+                        </>
+                      ) : uploadState === 'success' ? (
+                        <>
+                          <span className="upload-title">{fileName}</span>
+                          <span className="upload-sub">{resumeText.length.toLocaleString()} characters extracted</span>
+                        </>
+                      ) : uploadState === 'error' ? (
+                        <>
+                          <span className="upload-title upload-title--error">{fileName || 'Upload failed'}</span>
+                          <span className="upload-sub upload-sub--error">{errors.resume}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="upload-title">Click to upload your resume</span>
+                          <span className="upload-sub">PDF only · Max 1 MB</span>
+                        </>
+                      )}
+                    </div>
+                  </label>
+                </div>
+                {uploadState === 'error' && <FieldError message={errors.resume} />}
+              </>
             ) : (
-              <textarea
-                value={resumeText}
-                onChange={(e) => setResumeText(e.target.value)}
-                placeholder="Paste your resume text here..."
-                rows={8}
-              />
+              <>
+                <textarea
+                  value={resumeText}
+                  onChange={handleResumeTextChange}
+                  onBlur={() => touch('resume')}
+                  placeholder="Paste your resume text here..."
+                  rows={8}
+                  className={
+                    touched.resume
+                      ? validateResumeText(resumeText) ? 'input-error' : resumeText.trim() ? 'input-ok' : ''
+                      : ''
+                  }
+                />
+                {touched.resume && validateResumeText(resumeText)
+                  ? <FieldError message={validateResumeText(resumeText)} />
+                  : touched.resume && resumeText.trim()
+                  ? <FieldSuccess message="Resume text added" />
+                  : null}
+              </>
             )}
           </div>
+          
+          {/* ── Job Description ── */}
+<div className="form-group">
+  <label>
+    Job Description <span className="label-hint">(paste the full JD for best results)</span>
+  </label>
 
-          <div className="form-group">
-            <label>Job Description <span className="label-hint">(paste the full JD for best results)</span></label>
-            <textarea
-              value={jobDescription}
-              onChange={(e) => setJobDescription(e.target.value)}
-              placeholder="Paste the job description here...
+  <div className="toggle-group">
+    <button
+      className={jdInputMode === 'upload' ? 'active' : ''}
+      onClick={() => {
+        setJdInputMode('upload');
+        setErrors((p) => ({ ...p, jobDescription: '' }));
+      }}
+    >
+      Upload PDF
+    </button>
+    <button
+      className={jdInputMode === 'paste' ? 'active' : ''}
+      onClick={() => {
+        setJdInputMode('paste');
+        setErrors((p) => ({ ...p, jobDescription: '' }));
+      }}
+    >
+      Paste Text
+    </button>
+  </div>
 
-The AI will tailor interview questions to match the role's requirements."
-              rows={6}
-            />
-            <div className="char-count">{jobDescription.length} characters</div>
+  {jdInputMode === 'upload' ? (
+    <>
+      <div className={`upload-area ${errors.jobDescription ? 'upload-area--error' : jdFileName && jobDescription ? 'upload-area--success' : ''}`}>
+        <input
+          type="file"
+          accept=".pdf,application/pdf"
+          onChange={handleJDFileUpload}
+          disabled={jdUploading}
+          id="jd-upload"
+        />
+        <label htmlFor="jd-upload" className="upload-label">
+          <div className="upload-icon-wrap">
+            {jdUploading ? '...' : '📄'}
           </div>
+          <div className="upload-body">
+            {jdUploading ? (
+              <>
+                <span className="upload-title">Parsing JD…</span>
+                <span className="upload-sub">Please wait</span>
+              </>
+            ) : jdFileName && jobDescription ? (
+              <>
+                <span className="upload-title">{jdFileName}</span>
+                <span className="upload-sub">{jobDescription.length.toLocaleString()} characters extracted</span>
+              </>
+            ) : errors.jobDescription ? (
+              <>
+                <span className="upload-title upload-title--error">Upload failed</span>
+                <span className="upload-sub upload-sub--error">{errors.jobDescription}</span>
+              </>
+            ) : (
+              <>
+                <span className="upload-title">Click to upload JD</span>
+                <span className="upload-sub">PDF only · Max 1 MB</span>
+              </>
+            )}
+          </div>
+        </label>
+      </div>
+      {errors.jobDescription && <FieldError message={errors.jobDescription} />}
+    </>
+  ) : (
+    <>
+      <textarea
+        value={jobDescription}
+        onChange={handleJobDescriptionChange}
+        onBlur={() => touch('jobDescription')}
+        placeholder={`Paste the job description here…`}
+        rows={6}
+        className={
+          touched.jobDescription
+            ? errors.jobDescription
+              ? 'input-error'
+              : jobDescription.trim()
+              ? 'input-ok'
+              : ''
+            : ''
+        }
+      />
 
+      <div className="jd-progress">
+        <div className="jd-bar-track">
+          <div className="jd-bar-fill" style={{ width: `${barPct}%`, background: barColor }} />
+        </div>
+        <div className="jd-meta">
+          <span style={{ color: wcColor, fontWeight: 500, fontSize: '12px' }}>{wcLabel}</span>
+          <span className="jd-meta-right">max {JD_MAX}</span>
+        </div>
+      </div>
+
+      {touched.jobDescription && errors.jobDescription
+        ? <FieldError message={errors.jobDescription} />
+        : touched.jobDescription && !errors.jobDescription && jobDescription.trim()
+        ? <FieldSuccess message="Word count is within range" />
+        : null}
+    </>
+  )}
+</div>
+
+          {/* ── Interview Focus ── */}
           <div className="form-group">
             <label>Interview Focus</label>
             <p className="label-hint-block">What should the interviewer concentrate on?</p>
@@ -166,17 +490,141 @@ The AI will tailor interview questions to match the role's requirements."
           </div>
 
           <div className="setup-footer">
-            {!canStart && <p className="hint">Fill in all three fields above to continue</p>}
+            {!canStart && (
+              <p className="hint">Complete all fields correctly (Job Title, Resume, and JD) to continue</p>
+            )}
             <button
               className="btn primary"
               disabled={!canStart}
-              onClick={() => navigate('/preferences')}
+              onClick={() => {
+  localStorage.removeItem('setupData');
+  navigate('/preferences');
+}}
             >
               Choose Interviewer →
             </button>
           </div>
         </div>
       </div>
+
+      {/* ── validation styles ── */}
+      <style>{`
+        /* inputs */
+        .input-error {
+          border-color: #C0392B !important;
+          background: rgba(192, 57, 43, 0.03) !important;
+        }
+        .input-error:focus {
+          box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.12) !important;
+          outline: none;
+        }
+        .input-ok {
+          border-color: #27AE60 !important;
+        }
+        .input-ok:focus {
+          box-shadow: 0 0 0 3px rgba(39, 174, 96, 0.12) !important;
+          outline: none;
+        }
+
+        /* inline messages */
+        .field-error {
+          display: flex;
+          align-items: flex-start;
+          gap: 6px;
+          margin-top: 6px;
+          font-size: 12.5px;
+          line-height: 1.45;
+          color: #C0392B;
+        }
+        .field-error svg {
+          flex-shrink: 0;
+          margin-top: 1px;
+        }
+        .field-success {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-top: 6px;
+          font-size: 12.5px;
+          color: #27AE60;
+        }
+        .field-success svg { flex-shrink: 0; }
+
+        /* upload box states */
+        .upload-area {
+          position: relative;
+          border-radius: 8px;
+          transition: border-color 0.15s, background 0.15s;
+        }
+        .upload-area--error .upload-label {
+          border-color: #C0392B !important;
+          background: rgba(192, 57, 43, 0.03) !important;
+        }
+        .upload-area--success .upload-label {
+          border-color: #27AE60 !important;
+        }
+
+        /* center the upload label contents */
+        .upload-area .upload-label {
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          justify-content: center !important;
+          gap: 10px !important;
+          text-align: center !important;
+          cursor: pointer;
+          width: 100%;
+          padding: 28px 16px;
+        }
+        .upload-body {
+          align-items: center !important;
+        }
+
+        /* upload icon wrapper tints */
+        .upload-icon-wrap {
+          width: 36px;
+          height: 36px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          transition: background 0.15s, color 0.15s;
+        }
+        .upload-icon-wrap--idle  { background: rgba(0,0,0,0.05); color: inherit; }
+        .upload-icon-wrap--success { background: rgba(39,174,96,0.12); color: #27AE60; }
+        .upload-icon-wrap--error   { background: rgba(192,57,43,0.10); color: #C0392B; }
+
+        .upload-body { display: flex; flex-direction: column; gap: 2px; }
+        .upload-title { font-size: 13.5px; font-weight: 500; }
+        .upload-title--error { color: #C0392B; }
+        .upload-sub { font-size: 12px; opacity: 0.65; }
+        .upload-sub--error { color: #C0392B; opacity: 1; }
+
+        /* JD progress bar */
+        .jd-progress { margin-top: 8px; }
+        .jd-bar-track {
+          height: 3px;
+          border-radius: 99px;
+          background: rgba(0,0,0,0.08);
+          overflow: hidden;
+          margin-bottom: 5px;
+        }
+        .jd-bar-fill {
+          height: 100%;
+          border-radius: 99px;
+          transition: width 0.2s ease, background 0.2s ease;
+        }
+        .jd-meta {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .jd-meta-right {
+          font-size: 12px;
+          opacity: 0.45;
+        }
+      `}</style>
     </div>
   );
 }
