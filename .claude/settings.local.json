@@ -15,7 +15,9 @@
       "WebFetch(domain:elevenlabs.io)",
       "WebFetch(domain:elevenlabs-sdk.mintlify.app)",
       "Bash(npm run build:*)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "WebFetch(domain:flexprice.io)",
+      "WebFetch(domain:help.elevenlabs.io)"
     ]
   }
 }

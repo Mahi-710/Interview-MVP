@@ -517,6 +517,61 @@ textarea::placeholder {
   color: var(--accent);
 }
 
+/* ── Focus Area Selector ──────────────────────────────────── */
+.label-hint-block {
+  font-size: 13px;
+  color: var(--muted);
+  margin: -4px 0 10px;
+}
+
+.focus-area-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.focus-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.focus-card:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 4%, var(--surface));
+}
+
+.focus-card.selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.focus-card-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.focus-card-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.focus-card-desc {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
 /* ── Setup Footer ─────────────────────────────────────────── */
 .setup-footer {
   display: flex;
@@ -1181,6 +1236,7 @@ textarea::placeholder {
   border: 1px solid var(--border);
   margin-bottom: 12px;
   background: #000;
+  position: relative; /* needed for canvas overlay */
 }
 
 .camera-preview-wrap video {
@@ -1230,6 +1286,161 @@ textarea::placeholder {
   color: var(--green);
   font-weight: 600;
   font-size: 14px;
+}
+
+/* ── Blur selector ────────────────────────────────────────── */
+.blur-selector {
+  margin: 10px 0 12px;
+}
+
+.blur-selector-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.blur-options {
+  display: flex;
+  gap: 8px;
+}
+
+.blur-option-btn {
+  flex: 1;
+  padding: 10px 8px 8px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.blur-option-btn svg {
+  border-radius: 3px;
+  display: block;
+}
+
+.blur-option-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.blur-option-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+/* Canvas overlays the video absolutely — video keeps playing underneath */
+.blur-display-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  transform: scaleX(-1); /* mirror-flip same as the video */
+}
+
+/* Setup preview: canvas must match the video's max-width + centering,
+   not stretch across the full black wrapper */
+.camera-preview-wrap .blur-display-canvas {
+  left: 0;
+  right: 0;
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  aspect-ratio: 640 / 480;
+  margin: 0 auto;
+}
+
+/* ── Privacy Consent Card ────────────────────────────────── */
+.consent-card {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 40px 36px 36px;
+  max-width: 560px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.consent-icon {
+  width: 64px;
+  height: 64px;
+  background: var(--accent-light);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  margin-bottom: 20px;
+}
+
+.consent-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.consent-subtitle {
+  font-size: 14px;
+  color: var(--text-dim);
+  margin-bottom: 28px;
+  line-height: 1.6;
+}
+
+.consent-list {
+  list-style: none;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 32px;
+}
+
+.consent-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.consent-check {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  background: var(--green-light);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--green);
+  margin-top: 1px;
+}
+
+.consent-btn {
+  width: 100%;
+  max-width: 340px;
+  padding: 14px 24px;
+  font-size: 15px;
 }
 
 /* ── Interview Start ──────────────────────────────────────── */
@@ -1406,6 +1617,7 @@ textarea::placeholder {
   overflow: hidden;
   border: 1px solid var(--border-light);
   background: #000;
+  position: relative; /* needed for canvas overlay */
 }
 
 .video-feed-wrap video {
@@ -1742,6 +1954,10 @@ textarea::placeholder {
 
   .setup-footer {
     flex-direction: column;
+  }
+
+  .focus-area-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .voice-preview-section {

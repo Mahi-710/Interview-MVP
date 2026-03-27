@@ -11,6 +11,7 @@ export function InterviewProvider({ children }) {
   const [isInterviewComplete, setIsInterviewComplete] = useState(false);
   const [voiceId, setVoiceId] = useState(null);
   const [interviewerName, setInterviewerName] = useState('Alex');
+  const [focusArea, setFocusArea] = useState('full_screening');
 
   const addMessage = (role, text) => {
     setConversation((prev) => [...prev, { role, text }]);
@@ -25,6 +26,7 @@ export function InterviewProvider({ children }) {
     setIsInterviewComplete(false);
     setVoiceId(null);
     setInterviewerName('Alex');
+    setFocusArea('full_screening');
   };
 
   return (
@@ -38,6 +40,7 @@ export function InterviewProvider({ children }) {
         isInterviewComplete, setIsInterviewComplete,
         voiceId, setVoiceId,
         interviewerName, setInterviewerName,
+        focusArea, setFocusArea,
         reset,
       }}
     >

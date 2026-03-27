@@ -16,13 +16,13 @@ export async function parseResumePDF(file) {
 }
 
 export async function sendInterviewMessage({
-  candidateName, jobTitle, resumeText, jobDescription, conversationHistory, userMessage, interviewerName,
+  candidateName, jobTitle, resumeText, jobDescription, conversationHistory, userMessage, interviewerName, focusArea,
 }) {
   const res = await fetch(`${BASE_URL}/interview/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      candidateName, jobTitle, resumeText, jobDescription, conversationHistory, userMessage, interviewerName,
+      candidateName, jobTitle, resumeText, jobDescription, conversationHistory, userMessage, interviewerName, focusArea,
     }),
   });
   if (!res.ok) throw new Error('Failed to get interview response');
