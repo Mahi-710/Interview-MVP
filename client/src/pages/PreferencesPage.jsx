@@ -7,10 +7,16 @@ import Navbar from '../components/Navbar';
 import Stepper from '../components/Stepper';
 
 function PreferencesPage() {
-  const { user } = useAuth();
+ const { user, loading: authLoading } = useAuth();
   const { voiceId, setVoiceId, interviewerName, setInterviewerName } = useInterview();
   const navigate = useNavigate();
+useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/');
+    }
+  }, [user, authLoading, navigate]);
 
+  if (authLoading || !user) return null;
   const [voices, setVoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [previewing, setPreviewing] = useState(false);

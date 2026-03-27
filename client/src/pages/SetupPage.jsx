@@ -81,7 +81,7 @@
 // /* ─── component ──────────────────────────────────────────────────────────── */
 
 // function SetupPage() {
-//   const { user } = useAuth();
+//    const { user, loading } = useAuth();
 //   const {
 //     setResumeText, setJobDescription, setJobTitle,
 //     resumeText, jobDescription, jobTitle, focusArea, setFocusArea,
@@ -98,7 +98,15 @@
 // const [jdFileName, setJdFileName] = useState('');
 // const [jdUploading, setJdUploading] = useState(false);
 
-//   if (!user) { navigate('/'); return null; }
+// ✅ AUTH REDIRECT
+useEffect(() => {
+  if (!loading && !user) {
+    navigate('/');
+  }
+}, [user, loading, navigate]);
+
+// ✅ block render until auth ready
+if (loading || !user) return null;
 
 
 //   const touch = (field) => setTouched((p) => ({ ...p, [field]: true }));

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useInterview } from '../context/InterviewContext';
@@ -97,14 +98,17 @@ function renderMarkdown(text) {
 }
 
 function ReportPage() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const { conversation, evaluation, jobTitle, isInterviewComplete, reset } = useInterview();
   const navigate = useNavigate();
 
-  if (!user || !isInterviewComplete) {
-    navigate('/');
-    return null;
-  }
+  useEffect(() => {
+    if (!loading && (!user || !isInterviewComplete)) {
+      navigate('/');
+    }
+  }, [user, loading, isInterviewComplete, navigate]);
+
+  if (loading || !user || !isInterviewComplete) return null;
 
   const handleDownload = () => {
     generateReport(user.name, jobTitle, conversation, evaluation);

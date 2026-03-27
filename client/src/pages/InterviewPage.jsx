@@ -38,7 +38,7 @@ function computeMatchScore(expected, spoken) {
 }
 
 function InterviewPage() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const {
     resumeText, jobDescription, jobTitle,
     conversation, addMessage,
@@ -81,10 +81,13 @@ function InterviewPage() {
   const timerRef = useRef(null);
   const isEndingRef = useRef(false);
 
-  if (!user || !resumeText) {
-    navigate('/');
-    return null;
-  }
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/');
+    }
+  }, [user, loading, navigate]);
+
+  if (loading || !user) return null;
 
   // ── Mic Test ──────────────────────────────────────────────
   const startMicTest = () => {
