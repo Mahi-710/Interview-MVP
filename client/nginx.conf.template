@@ -8,7 +8,7 @@ server {
     location /api/ {
         proxy_pass ${BACKEND_URL}/api/;
 
-        proxy_set_header Host interview-mvp-production-65fa.up.railway.app;
+        proxy_set_header Host interview-mvp-production-3eef.up.railway.app;
         proxy_set_header X-Real-IP $remote_addr;
 
         proxy_ssl_server_name on;
