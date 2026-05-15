@@ -6,6 +6,7 @@ import SetupPage from './pages/SetupPage';
 import PreferencesPage from './pages/PreferencesPage';
 import InterviewPage from './pages/InterviewPage';
 import ReportPage from './pages/ReportPage';
+import CandidatePage from './pages/CandidatePage';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
             <Route path="/preferences" element={<PreferencesPage />} />
             <Route path="/interview" element={<InterviewPage />} />
             <Route path="/report" element={<ReportPage />} />
+            <Route path="/i/:token" element={<CandidatePage />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>

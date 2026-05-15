@@ -1454,6 +1454,32 @@ textarea::placeholder {
   font-size: 15px;
 }
 
+.recording-tip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 10px 16px;
+  background: var(--bg-secondary, #f5f6fa);
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--text-muted, #888);
+}
+
+.recording-tip svg {
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.recording-tip kbd {
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border, #ddd);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: inherit;
+  font-size: 11.5px;
+}
+
 /* ── Interview Body ───────────────────────────────────────── */
 .interview-body {
   display: flex;

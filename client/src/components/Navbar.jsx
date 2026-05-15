@@ -37,7 +37,7 @@ function Navbar() {
           onClick={() => navigate(user ? '/setup' : '/')}
         />
         <div className="navbar-links">
-          <span className="navbar-link" onClick={() => navigate(user ? '/setup' : '/')}>Home</span>
+          {/* <span className="navbar-link" onClick={() => navigate(user ? '/setup' : '/')}>Home</span> */}
           {user && (
             <div className="navbar-avatar-wrap" ref={menuRef}>
               <div className="navbar-avatar" onClick={() => setShowLogoutMenu((v) => !v)} title={user.name}>

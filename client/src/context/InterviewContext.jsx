@@ -12,6 +12,9 @@ export function InterviewProvider({ children }) {
   const [voiceId, setVoiceId] = useState(null);
   const [interviewerName, setInterviewerName] = useState('Alex');
   const [focusArea, setFocusArea] = useState('full_screening');
+  // Token-based (recruited) mode
+  const [sessionToken, setSessionToken] = useState(null);
+  const [candidateName, setCandidateName] = useState('');
 
   const addMessage = (role, text) => {
     setConversation((prev) => [...prev, { role, text }]);
@@ -27,6 +30,8 @@ export function InterviewProvider({ children }) {
     setVoiceId(null);
     setInterviewerName('Alex');
     setFocusArea('full_screening');
+    setSessionToken(null);
+    setCandidateName('');
   };
 
   return (
@@ -41,6 +46,8 @@ export function InterviewProvider({ children }) {
         voiceId, setVoiceId,
         interviewerName, setInterviewerName,
         focusArea, setFocusArea,
+        sessionToken, setSessionToken,
+        candidateName, setCandidateName,
         reset,
       }}
     >

@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from services.gemini import build_system_prompt, chat, generate_evaluation
 from services.elevenlabs_tts import text_to_speech, get_available_voices
+from services.db import save_interview_to_db
 
 router = APIRouter(prefix="/api/interview")
 
@@ -28,6 +29,9 @@ class EvaluateRequest(BaseModel):
     candidateName: str
     jobTitle: str
     transcript: str
+    # Present only in recruited (token) mode — used to persist results to DB
+    token: Optional[str] = None
+    conversationHistory: Optional[List[Dict[str, Any]]] = None
 
 
 @router.get("/voices")
@@ -72,9 +76,24 @@ async def interview_tts(req: TTSRequest):
 
 @router.post("/evaluate")
 async def interview_evaluate(req: EvaluateRequest):
+    # Step 1: Generate evaluation (must succeed — raises 500 if it fails)
     try:
         evaluation = generate_evaluation(req.candidateName, req.jobTitle, req.transcript)
-        return {"evaluation": evaluation}
     except Exception as e:
-        print(f"Evaluation error: {e}")
+        print(f"Evaluation generation error: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate evaluation")
+
+    # Step 2: Persist to DB (best-effort — candidate always gets their evaluation)
+    if req.token:
+        try:
+            save_interview_to_db(
+                token=req.token,
+                conversation_history=req.conversationHistory or [],
+                evaluation=evaluation,
+            )
+        except Exception as e:
+            import traceback
+            print(f"DB persistence failed for token {req.token}: {e}")
+            traceback.print_exc()
+
+    return {"evaluation": evaluation}

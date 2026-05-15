@@ -16,3 +16,5 @@ mediapipe==0.10.14
 protobuf>=4.25.3,<5
 google-api-core>=2.15.0
 googleapis-common-protos>=1.62.0
+psycopg2-binary==2.9.9
+requests==2.32.3

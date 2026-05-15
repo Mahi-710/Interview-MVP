@@ -33,6 +33,51 @@ FOCUS_AREA_PROMPTS = {
 - Explore their motivation for this particular role and company
 - Ask about relevant domain knowledge mentioned in the JD
 - Keep ~20% of questions general/conversational to maintain natural flow""",
+
+#     "dsa": """INTERVIEW FOCUS — Data Structures & Algorithms (80% of questions):
+# - Ask conceptual questions about arrays, linked lists, trees, graphs, heaps, hash maps, tries
+# - Probe time and space complexity reasoning — ask candidates to analyze their own solutions
+# - Present verbal problem-solving scenarios: "How would you find the shortest path between two nodes?" or "Walk me through how you'd detect a cycle in a linked list"
+# - Ask about trade-offs between approaches: "When would you pick a heap over a sorted array?"
+# - Probe sorting algorithms, recursion, dynamic programming, and sliding window patterns
+# - Do NOT ask candidates to write code — keep it conceptual and verbal
+# - Keep ~20% of questions general/conversational to maintain natural flow""",
+
+#     "system_design": """INTERVIEW FOCUS — System Design (80% of questions):
+# - Ask candidates to design real-world systems: URL shortener, notification service, ride-sharing backend, distributed cache, etc.
+# - Probe scalability thinking: "How would this hold up at 10 million users?"
+# - Explore trade-offs: consistency vs availability, SQL vs NoSQL, monolith vs microservices
+# - Ask about caching strategies, load balancing, message queues, database sharding
+# - Probe failure modes: "What happens when this service goes down?" or "How do you handle a database write that fails halfway?"
+# - Evaluate whether they clarify requirements before jumping to solutions — that's a signal
+# - Keep ~20% of questions general/conversational to maintain natural flow""",
+
+#     "ml": """INTERVIEW FOCUS — Machine Learning & AI (80% of questions):
+# - Cover ML fundamentals: bias-variance tradeoff, overfitting, regularization, cross-validation
+# - Ask about model selection reasoning: "When would you use a Random Forest over a neural network?"
+# - Probe feature engineering, handling missing data, class imbalance, and data leakage
+# - Explore deep learning concepts if relevant to their resume: CNNs, RNNs, transformers, attention
+# - Ask about MLOps concerns: model drift, retraining pipelines, monitoring in production
+# - Include practical questions: "Walk me through how you'd build a recommendation system from scratch"
+# - Keep ~20% of questions general/conversational to maintain natural flow""",
+
+#     "frontend": """INTERVIEW FOCUS — Frontend Engineering (80% of questions):
+# - Probe JavaScript/TypeScript depth: closures, event loop, prototypes, async/await, promises
+# - Ask about React (or their framework): reconciliation, hooks lifecycle, state management, memoization
+# - Explore browser performance: critical rendering path, reflow vs repaint, lazy loading, code splitting
+# - Ask about accessibility, responsive design, and cross-browser compatibility
+# - Probe CSS knowledge: specificity, flexbox vs grid, CSS-in-JS vs stylesheets
+# - Include scenario questions: "How would you optimize a page that's rendering 10,000 list items?"
+# - Keep ~20% of questions general/conversational to maintain natural flow""",
+
+#     "backend": """INTERVIEW FOCUS — Backend Engineering (80% of questions):
+# - Probe REST API design, HTTP semantics, status codes, idempotency, versioning
+# - Ask about database design: normalization, indexing strategies, query optimization, transactions
+# - Explore concurrency: race conditions, deadlocks, optimistic vs pessimistic locking
+# - Ask about authentication and authorization patterns: JWT, OAuth, session management
+# - Probe caching (Redis, CDN), background jobs, and message queues (Kafka, RabbitMQ)
+# - Include scenario questions: "How would you design an API rate limiter?"
+# - Keep ~20% of questions general/conversational to maintain natural flow""",
 }
 
 
@@ -117,13 +162,17 @@ for the role of {job_title}, provide a structured evaluation:
 2. **Technical Strengths** (bullet points)
 3. **Areas of Concern / Gaps** (bullet points)
 4. **Communication & Culture Fit** (1-2 sentences)
-5. **Recommendation**: Advance to Round 2 / Hold / Reject — with brief justification
+5. **Final Decision**: Either **Selected** (candidate advances to the next round) or **Rejected** (candidate does not proceed). Use ONLY one of these two outcomes. Provide 1-2 sentences of justification.
 6. **Question-by-Question Breakdown**: For each Q&A, give a score out of 10 and a one-line comment.
 
 Candidate: {candidate_name}
 
 TRANSCRIPT:
-{transcript}"""
+{transcript}
+
+IMPORTANT: After the full evaluation above, on the very last line write EXACTLY one of these two tags and nothing else:
+###RECOMMENDATION:selected###
+###RECOMMENDATION:rejected###"""
 
     result = model.generate_content(eval_prompt)
     return result.text

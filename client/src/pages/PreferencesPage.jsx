@@ -8,7 +8,7 @@ import Stepper from '../components/Stepper';
 
 function PreferencesPage() {
   const { user } = useAuth();
-  const { voiceId, setVoiceId, interviewerName, setInterviewerName } = useInterview();
+  const { voiceId, setVoiceId, interviewerName, setInterviewerName, sessionToken, candidateName } = useInterview();
   const navigate = useNavigate();
 
   const [voices, setVoices] = useState([]);
@@ -17,7 +17,7 @@ function PreferencesPage() {
   const [previewError, setPreviewError] = useState('');
   const audioRef = useRef(null);
 
-  if (!user) {
+  if (!user && !sessionToken) {
     navigate('/');
     return null;
   }
@@ -60,7 +60,7 @@ function PreferencesPage() {
     setPreviewError('');
     const name = selectedVoice?.name || 'Alex';
     const blob = await getTextToSpeech(
-      `Hi ${user.name}, I'm ${name}. I'll be your interviewer today. Ready when you are!`,
+      `Hi ${candidateName || user?.name || 'there'}, I'm ${name}. I'll be your interviewer today. Ready when you are!`,
       voiceId
     );
     if (blob) {
@@ -153,7 +153,7 @@ function PreferencesPage() {
               </div>
 
               <div className="preference-actions">
-                <button className="btn secondary" onClick={() => navigate('/setup')}>
+                <button className="btn secondary" onClick={() => navigate(sessionToken ? `/i/${sessionToken}` : '/setup')}>
                   ← Back
                 </button>
                 <button className="btn primary" onClick={proceed}>

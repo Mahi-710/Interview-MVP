@@ -98,21 +98,23 @@ function renderMarkdown(text) {
 
 function ReportPage() {
   const { user } = useAuth();
-  const { conversation, evaluation, jobTitle, isInterviewComplete, reset } = useInterview();
+  const { conversation, evaluation, jobTitle, isInterviewComplete, reset, sessionToken, candidateName } = useInterview();
   const navigate = useNavigate();
+  const displayName = candidateName || user?.name || 'Candidate';
 
-  if (!user || !isInterviewComplete) {
+  if ((!user && !sessionToken) || !isInterviewComplete) {
     navigate('/');
     return null;
   }
 
   const handleDownload = () => {
-    generateReport(user.name, jobTitle, conversation, evaluation);
+    generateReport(displayName, jobTitle, conversation, evaluation);
   };
 
   const handleNewInterview = () => {
     reset();
-    navigate('/setup');
+    // Token users came via a recruiter link — send them home, not to the practice setup
+    navigate(sessionToken ? '/' : '/setup');
   };
 
   const sections = evaluation
@@ -133,7 +135,7 @@ function ReportPage() {
           <div className="report-header">
             <h2>Interview Complete</h2>
             <p>
-              Great job, {user.name}! Here is your evaluation for the{' '}
+              Great job, {displayName}! Here is your evaluation for the{' '}
               <strong>{jobTitle}</strong> position.
             </p>
           </div>
@@ -153,9 +155,9 @@ function ReportPage() {
             <button className="btn primary" onClick={handleDownload}>
               Download PDF Report
             </button>
-            <button className="btn secondary" onClick={handleNewInterview}>
+            {/* <button className="btn secondary" onClick={handleNewInterview}>
               Start New Interview
-            </button>
+            </button> */}
           </div>
         </div>
       </div>

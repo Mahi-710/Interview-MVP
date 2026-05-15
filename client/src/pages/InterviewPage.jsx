@@ -5,7 +5,7 @@ import { useInterview } from '../context/InterviewContext';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { useVideoAnalysis } from '../hooks/useVideoAnalysis';
-import { sendInterviewMessage, getTextToSpeech, getEvaluation } from '../utils/api';
+import { sendInterviewMessage, getTextToSpeech, getEvaluation, startInterviewSession } from '../utils/api';
 import Navbar from '../components/Navbar';
 import Stepper from '../components/Stepper';
 
@@ -44,7 +44,9 @@ function InterviewPage() {
     conversation, addMessage,
     setEvaluation, setIsInterviewComplete,
     voiceId, interviewerName, focusArea,
+    sessionToken, candidateName,
   } = useInterview();
+  const displayName = candidateName || user?.name || 'Candidate';
   const navigate = useNavigate();
   const submitAnswerRef = useRef(null);
 
@@ -81,7 +83,7 @@ function InterviewPage() {
   const timerRef = useRef(null);
   const isEndingRef = useRef(false);
 
-  if (!user || !resumeText) {
+  if ((!user && !sessionToken) || !resumeText) {
     navigate('/');
     return null;
   }
@@ -210,18 +212,21 @@ function InterviewPage() {
     stopAudio();
     stopVideo();
     clearInterval(timerRef.current);
+    setIsLoading(false);
     setIsInterviewComplete(true);
     setIsGeneratingReport(true);
 
     const transcriptStr = conversation
-      .map((m) => `${m.role === 'interviewer' ? `Interviewer (${interviewerName})` : user.name}: ${m.text}`)
+      .map((m) => `${m.role === 'interviewer' ? `Interviewer (${interviewerName})` : displayName}: ${m.text}`)
       .join('\n\n');
 
     try {
       const { evaluation } = await getEvaluation({
-        candidateName: user.name,
+        candidateName: displayName,
         jobTitle,
         transcript: transcriptStr,
+        token: sessionToken || null,
+        conversationHistory: conversation,
       });
       setEvaluation(evaluation);
       navigate('/report');
@@ -230,7 +235,7 @@ function InterviewPage() {
       setIsGeneratingReport(false);
       isEndingRef.current = false;
     }
-  }, [conversation, user, jobTitle, stopListening, stopAudio, stopVideo, setIsInterviewComplete, setEvaluation, navigate]);
+  }, [conversation, user, jobTitle, sessionToken, candidateName, displayName, stopListening, stopAudio, stopVideo, setIsInterviewComplete, setEvaluation, navigate]);
 
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
 
@@ -246,7 +251,9 @@ function InterviewPage() {
   }, [conversation]);
 
   async function speakText(text) {
+    if (isEndingRef.current) return;
     const audioBlob = await getTextToSpeech(text, voiceId);
+    if (isEndingRef.current) return;
     if (audioBlob) {
       await playAudio(audioBlob);
     } else {
@@ -255,11 +262,14 @@ function InterviewPage() {
   }
 
   const startInterview = async () => {
+    if (sessionToken) {
+      startInterviewSession(sessionToken); // non-blocking status update
+    }
     setIsStarted(true);
     setIsLoading(true);
     try {
       const { reply } = await sendInterviewMessage({
-        candidateName: user.name,
+        candidateName: displayName,
         jobTitle,
         resumeText,
         jobDescription,
@@ -268,9 +278,11 @@ function InterviewPage() {
         interviewerName,
         focusArea,
       });
+      if (isEndingRef.current) return;
       addMessage('interviewer', reply);
       setIsLoading(false);
       await speakText(reply);
+      if (isEndingRef.current) return;
       startListening();
     } catch (err) {
       alert('Failed to start interview. Check your connection.');
@@ -290,7 +302,7 @@ function InterviewPage() {
     try {
       const updatedHistory = [...conversation, { role: 'candidate', text: answer }];
       const { reply, isComplete } = await sendInterviewMessage({
-        candidateName: user.name,
+        candidateName: displayName,
         jobTitle,
         resumeText,
         jobDescription,
@@ -299,9 +311,12 @@ function InterviewPage() {
         interviewerName,
         focusArea,
       });
+      if (isEndingRef.current) return;
       addMessage('interviewer', reply);
       setIsLoading(false);
       await speakText(reply);
+
+      if (isEndingRef.current) return;
 
       if (isComplete) {
         clearInterval(timerRef.current);
@@ -310,13 +325,15 @@ function InterviewPage() {
 
         const fullConversation = [...updatedHistory, { role: 'interviewer', text: reply }];
         const transcriptStr = fullConversation
-          .map((m) => `${m.role === 'interviewer' ? `Interviewer (${interviewerName})` : user.name}: ${m.text}`)
+          .map((m) => `${m.role === 'interviewer' ? `Interviewer (${interviewerName})` : displayName}: ${m.text}`)
           .join('\n\n');
 
         const { evaluation } = await getEvaluation({
-          candidateName: user.name,
+          candidateName: displayName,
           jobTitle,
           transcript: transcriptStr,
+          token: sessionToken || null,
+          conversationHistory: fullConversation,
         });
         setEvaluation(evaluation);
         navigate('/report');
@@ -660,6 +677,18 @@ function InterviewPage() {
                     : 'Enable your camera above to proceed'}
                 </p>
               )}
+              <div className="recording-tip">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                </svg>
+                <span>
+                  Want to record this session? Use{' '}
+                  {navigator.platform?.toLowerCase().includes('mac')
+                    ? <kbd>Cmd + Shift + 5</kbd>
+                    : <kbd>Win + Shift + R</kbd>
+                  }{' '}to start screen recording before you begin.
+                </span>
+              </div>
             </div>
 
             </> )} {/* end hasConsented */}
